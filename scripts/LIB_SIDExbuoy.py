@@ -111,6 +111,7 @@ def calc_velocity(lon_track = [], lat_track = [], time_track = [], step = 1,
     v = np.array([])
     dx = np.array([])
     dy = np.array([])
+    sp = np.array([])
     dt = np.array([])
 
     for ii in range(len(lons)-1):
@@ -130,7 +131,8 @@ def calc_velocity(lon_track = [], lat_track = [], time_track = [], step = 1,
 
         # compute forward and back azimuths, plus distance
         az12,az21,dist = g.inv(loc1[1],loc1[0],loc2[1],loc2[0])
-        distance = np.append(distance, dist*units('meter').to('cm'))
+        DI = dist*units('meter').to('cm')
+        distance = np.append(distance, DI)
         azimuth  = np.append(azimuth, az12)
 
         # angle from east
@@ -141,15 +143,17 @@ def calc_velocity(lon_track = [], lat_track = [], time_track = [], step = 1,
         # calculate zonal, meridional displacements fmor azimuth
         DX = (dist*units('meter') * np.cos(beta.to('radian'))).to('cm')
         DY = (dist*units('meter') * np.sin(beta.to('radian'))).to('cm')
-
+        
         dx = np.append(dx, DX)
         dy = np.append(dy, DY)
         u = np.append(u, DX/DT)
         v = np.append(v, DY/DT)
+        sp = np.append(sp, DI/DT)
         
         
     # flag unlikely velocity values
-    u[np.abs(u) > vflag] = np.nan
-    v[np.abs(v) > vflag] = np.nan
+    u[np.abs(sp) > vflag] = np.nan
+    v[np.abs(sp) > vflag] = np.nan
+    sp[np.abs(sp) > vflag] = np.nan
 
-    return u, v, time, dx, dy, distance
+    return u, v, sp, time, dx, dy, distance
