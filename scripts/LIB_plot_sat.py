@@ -427,7 +427,7 @@ from matplotlib import pyplot as plt
 import matplotlib.colors
 
 Latest recorded update:
-10-07-2022
+03-01-2024
 
     """
     # colormap normalization
@@ -462,5 +462,3 @@ Latest recorded update:
                       transform=SourceCCRS, zorder = zorder, shading = shading)
    # use 'gouraud' shading in pcolormesh since it doesn't like that it's given cell centers rather than corners
         
-    # remove automatic image border
-    ax.outline_patch.set_linewidth(0)

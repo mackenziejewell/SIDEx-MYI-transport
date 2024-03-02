@@ -50,6 +50,7 @@ from LIB_plotting import *
 from LIB_PPdrift_NSIDC0116 import *
 from LIB_SIC_MODISAMSR2 import *
 from LIB_access_ERA5 import *
+from LIB_SIDExbuoy import calculate_velocity, open_buoy_data
 
 # from LIB_geo_func import make_polygon, add_points_to_segment, within_polygon_indices
 # from LIB_geo_plot import (add_land, add_coast, add_grid, add_date, fix_cartopy_vectors)

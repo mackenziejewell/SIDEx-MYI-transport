@@ -82,6 +82,157 @@ from pyproj import Geod
 g = Geod(ellps='WGS84')
 
 
+def calculate_velocity(lons = [], lats = [], times = [], method = 'centered', skip_nans = True, acceleration = False):
+
+#     method = 'centered'
+#     method = 'forward'
+#     method = 'backward'
+    
+    # whether or not to remove nan coordinates from velocity calculations
+    # if False, would return nan velocities where nan coordinates exist
+    
+    if skip_nans:
+        times = times[np.isnan(lons)==False]
+        lons = lons[np.isnan(lats)==False]
+        lats = lats[np.isnan(lats)==False]
+        
+    # times halfway between considered time steps
+    time = np.array([])
+    lon = np.array([])
+    lat = np.array([])
+
+    di = np.array([])
+    az = np.array([])
+    u = np.array([])
+    v = np.array([])
+    dx = np.array([])
+    dy = np.array([])
+    sp = np.array([])
+    dt = np.array([])
+
+    if str(method) == 'forward':
+        index_range = range(0, len(lons)-1)
+    elif str(method) == 'centered':
+        index_range = range(1, len(lons)-1)
+    elif str(method) == 'backward':
+        index_range = range(1, len(lons))
+            
+            
+    for ii in index_range:
+
+        if str(method) == 'forward':
+            ind_i = ii
+            ind_f = ii+1
+        elif str(method) == 'centered':
+            ind_i = ii-1
+            ind_f = ii+1
+        elif str(method) == 'backward':
+            ind_i = ii-1
+            ind_f = ii
+        else:
+            break
+            
+        loc_i = (lats[ind_i], lons[ind_i])  # start location
+        loc_f = (lats[ind_f], lons[ind_f])  # end location
+        
+        ti = times[ind_i]  # start time
+        tf = times[ind_f]  # end time
+        
+        # compute forward and back azimuths, plus distance
+        az12,az21,dist = g.inv(loc_i[1],loc_i[0],loc_f[1],loc_f[0])
+        DI = dist*units('meter').to('cm')
+
+        # angle from east
+        beta = 90 * units('degree') - az12 * units('degree')
+        if beta <= -180*units('degree'):
+            beta += 360*units('degree')
+
+        # calculate zonal, meridional displacements fmor azimuth
+        DX = (dist*units('meter') * np.cos(beta.to('radian'))).to('cm')
+        DY = (dist*units('meter') * np.sin(beta.to('radian'))).to('cm')
+        
+        # calculate length of timesteps used to calculate velocity
+        DT = (tf - ti).total_seconds() * units('second')
+        
+        # save corresponding time to array
+        if str(method) == 'forward':
+            time = np.append(time, ti)
+            lon = np.append(lon, loc_i[1])
+            lat = np.append(lat, loc_i[0])
+        elif str(method) == 'centered':
+            time = np.append(time, times[ii])
+            lon = np.append(lon, lons[ii])
+            lat = np.append(lat, lats[ii])
+        elif str(method) == 'backward':
+            time = np.append(time, tf)
+            lon = np.append(lon, loc_f[1])
+            lat = np.append(lat, loc_f[0])
+            
+            
+        u = np.append(u, DX/DT)
+        v = np.append(v, DY/DT)
+        sp = np.append(sp, DI/DT)
+        dx = np.append(dx, DX)
+        dy = np.append(dy, DY)
+        di = np.append(di, DI)
+        az  = np.append(az, az12)
+        dt = np.append(dt, DT)
+
+    
+    if not acceleration:
+        return u, v, sp, time, lat, lon, dx, dy, di, az, dt
+    
+    else:
+        
+        if str(method) == 'forward':
+            
+            index_range = range(0, len(time)-1)
+            
+            # calculate forward-looking accelerations 
+            # (time step tt's acceleration assigned as between (tt) and (tt+1))
+            DT = np.array([(time[tt+1]-time[tt]).total_seconds() for tt in index_range])*units('seconds')
+            DU = np.array([(u[tt+1]-u[tt]).magnitude for tt in index_range])*units('cm/s')
+            DV = np.array([(v[tt+1]-v[tt]).magnitude for tt in index_range])*units('cm/s')
+
+            # acceleration
+            au = np.append(DU/DT, np.nan)
+            av = np.append(DV/DT, np.nan)
+            acc = np.append(np.sqrt(DU**2+DV**2)/DT, np.nan)
+            
+        elif str(method) == 'centered':
+            
+            index_range = range(1, len(time)-1)
+            
+            # calculate centered accelerations 
+            # (time step tt's acceleration assigned as between (tt-1) and (tt+1))
+            DT = np.array([(time[tt+1]-time[tt-1]).total_seconds() for tt in index_range])*units('seconds')
+            DU = np.array([(u[tt+1]-u[tt-1]).magnitude for tt in index_range])*units('cm/s')
+            DV = np.array([(v[tt+1]-v[tt-1]).magnitude for tt in index_range])*units('cm/s')
+
+            # acceleration
+            au = np.append(np.append(np.nan, DU/DT), np.nan)
+            av = np.append(np.append(np.nan, DV/DT), np.nan)
+            acc = np.append(np.append(np.nan, np.sqrt(DU**2+DV**2)/DT), np.nan)
+            
+        elif str(method) == 'backward':
+            
+            index_range = range(1, len(time))
+            
+            # calculate backward-looking accelerations 
+            # (time step tt's acceleration assigned as between (tt-1) and (tt))
+            DT = np.array([(time[tt]-time[tt-1]).total_seconds() for tt in index_range])*units('seconds')
+            DU = np.array([(u[tt]-u[tt-1]).magnitude for tt in index_range])*units('cm/s')
+            DV = np.array([(v[tt]-v[tt-1]).magnitude for tt in index_range])*units('cm/s')
+
+            # acceleration
+            au = np.append(np.nan, DU/DT)
+            av = np.append(np.nan, DV/DT)
+            acc = np.append(np.nan, np.sqrt(DU**2+DV**2)/DT)
+            
+        
+        return u, v, sp, time, lat, lon, dx, dy, di, az, dt, au, av, acc
+    
+    
 
 
 def calc_velocity(lon_track = [], lat_track = [], time_track = [], step = 1, 
@@ -156,4 +307,4 @@ def calc_velocity(lon_track = [], lat_track = [], time_track = [], step = 1,
     v[np.abs(sp) > vflag] = np.nan
     sp[np.abs(sp) > vflag] = np.nan
 
-    return u, v, sp, time, dx, dy, distance
+    return u, v, time, dx, dy, distance
